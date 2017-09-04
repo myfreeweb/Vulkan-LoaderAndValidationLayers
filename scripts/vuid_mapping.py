@@ -50,6 +50,7 @@ implicit_type_map = {
 'renderpass'      : 11,
 'bufferlevel'     : 12,
 'arraylength'     : 13,
+# end implicit_type_map
 }
 # Function/struct value mappings, shifted up FUNC_STRUCT_SHIFT bits in final ID
 func_struct_id_map = {
@@ -540,7 +541,7 @@ func_struct_id_map = {
 'vkGetImageSparseMemoryRequirements2KHR' : 484,
 'VkPhysicalDevice16BitStorageFeaturesKHR' : 485,
 'VkPhysicalDeviceVariablePointerFeaturesKHR' : 486,
-### ADD New func/struct mappings above this line
+# end func_struct_id_map
 }
 # Mapping of params to unique IDs
 implicit_param_map = {
@@ -1017,8 +1018,26 @@ implicit_param_map = {
 'basePipelineHandle' : 470,
 'pImmutableSamplers' : 471,
 'pTexelBufferView' : 472,
-### ADD New implicit param mappings above this line
+# end implicit_param_map
 }
+
+# dictionary getter that adds missing values
+def lookup_id (vuid_map, key):
+    if key not in vuid_map:
+        # add new mapping in memory
+        vuid_map[key] = len(vuid_map)
+        # add new mapping to module source for future invocations
+        vuid_map_name = ''
+        for mod_name, mod_value in globals().items():
+            if mod_value == vuid_map:
+                vuid_map_name = mod_name
+        with open(__file__, 'r') as module:
+            module_contents = module.read()
+        with open(__file__, 'w') as module:
+            anchor = '# end {}'.format(vuid_map_name)
+            replacement = "'{}' : {},\n{}".format(key, vuid_map[key], anchor)
+            module.write(module_contents.replace(anchor, replacement))
+    return vuid_map[key]
 
 uniqueid_set = set() # store uniqueid to make sure we don't have duplicates
 
@@ -1026,64 +1045,26 @@ uniqueid_set = set() # store uniqueid to make sure we don't have duplicates
 #  See "VUID Mapping Details" comment above for more info
 def convertVUID(vuid_string):
     """Convert a string-based VUID into a numberical value"""
-    #func_struct_update = False
-    #imp_param_update = False
     if vuid_string in ['', None]:
         return -1
     vuid_parts = vuid_string.split('-')
-    if vuid_parts[1] not in func_struct_id_map:
-        print ("ERROR: Missing func/struct map value for '%s'!" % (vuid_parts[1]))
-        print (" TODO: Need to add mapping for this to end of func_struct_id_map")
-        print ("   replace '### ADD New func/struct mappings above this line' line with \"'%s' : %d,\"" % (vuid_parts[1], len(func_struct_id_map)))
-        func_struct_id_map[vuid_parts[1]] = len(func_struct_id_map)
-        #func_struct_update = True
-        sys.exit()
-    uniqueid = func_struct_id_map[vuid_parts[1]] << FUNC_STRUCT_SHIFT
+    uniqueid = lookup_id(func_struct_id_map, vuid_parts[1]) << FUNC_STRUCT_SHIFT
     if vuid_parts[-1].isdigit(): # explit VUID has int on the end
         explicit_id = int(vuid_parts[-1])
         # For explicit case, id is explicit_base + func/struct mapping + unique id
         uniqueid = uniqueid + (explicit_id << EXPLICIT_ID_SHIFT) + explicit_bit0
     else: # implicit case
-        if vuid_parts[-1] not in implicit_type_map:
-            print("ERROR: Missing mapping for implicit type '%s'!\nTODO: Please add new mapping." % (vuid_parts[-1]))
-            sys.exit()
-        else:
-            param_id = 0 # Default when no param is available
-            if vuid_parts[-2] != vuid_parts[1]: # we have a parameter
-                if vuid_parts[-2] in implicit_param_map:
-                    param_id = implicit_param_map[vuid_parts[-2]]
-                else:
-                    print ("ERROR: Missing param '%s' from implicit_param_map\n TODO: Please add new mapping." % (vuid_parts[-2]))
-                    print ("   replace '### ADD New implicit param mappings above this line' line with \"'%s' : %d,\"" % (vuid_parts[-2], len(implicit_param_map)))
-                    implicit_param_map[vuid_parts[-2]] = len(implicit_param_map)
-                    #imp_param_update = True
-                    sys.exit()
-                uniqueid = uniqueid + (param_id << IMPLICIT_PARAM_SHIFT) + (implicit_type_map[vuid_parts[-1]] << IMPLICIT_TYPE_SHIFT) + implicit_bit0
-            else: # No parameter so that field is 0
-                uniqueid = uniqueid + (implicit_type_map[vuid_parts[-1]] << IMPLICIT_TYPE_SHIFT) + implicit_bit0
+        param_id = 0 # Default when no param is available
+        if vuid_parts[-2] != vuid_parts[1]: # we have a parameter
+            param_id = lookup_id(implicit_param_map, vuid_parts[-2])
+            uniqueid = uniqueid + (param_id << IMPLICIT_PARAM_SHIFT) + (lookup_id(implicit_type_map, vuid_parts[-1]) << IMPLICIT_TYPE_SHIFT) + implicit_bit0
+        else: # No parameter so that field is 0
+            uniqueid = uniqueid + (lookup_id(implicit_type_map, vuid_parts[-1]) << IMPLICIT_TYPE_SHIFT) + implicit_bit0
 #    if uniqueid in uniqueid_set:
 #        print ("ERROR: Uniqueid %d for string id %s is a duplicate!" % (uniqueid, vuid_string))
 #        print (" TODO: Figure out what caused the dupe and fix it")
         #sys.exit()
     # print ("Storing uniqueid %d for unique string %s" % (uniqueid, vuid_string))
     uniqueid_set.add(uniqueid)
-#    if func_struct_update:
-#        print ("func_struct_id_map updated, here's new structure")
-#        print ("func_struct_id_map = {")
-#        fs_id = 0
-#        for fs in sorted(func_struct_id_map):
-#            print ("'%s' : %d," % (fs, fs_id))
-#            fs_id = fs_id + 1
-#        print ("### ADD New func/struct mappings above this line")
-#        print ("}")
-#    if imp_param_update:
-#        print ("implicit_param_map updated, here's new structure")
-#        print ("implicit_param_map = {")
-#        ip_id = 0
-#        for ip in sorted(implicit_param_map):
-#            print ("'%s' : %d," % (ip, ip_id))
-#            ip_id = ip_id + 1
-#        print ("### ADD New implicit param mappings above this line")
-#        print ("}")
 
     return uniqueid
