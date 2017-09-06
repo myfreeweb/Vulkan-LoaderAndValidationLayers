@@ -204,7 +204,7 @@ void *loader_device_heap_realloc(const struct loader_device *device, void *pMemo
 }
 
 // Environment variables
-#if defined(__linux__)
+#if defined(__linux__) || defined(__FreeBSD__)
 
 static inline char *loader_getenv(const char *name, const struct loader_instance *inst) {
     // No allocation of memory necessary for Linux, but we should at least touch

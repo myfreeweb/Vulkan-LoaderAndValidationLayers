@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Update source for glslang, spirv-tools
 
 set -e
@@ -6,7 +6,7 @@ set -e
 if [[ $(uname) == "Linux" ]]; then
     CURRENT_DIR="$(dirname "$(readlink -f ${BASH_SOURCE[0]})")"
     CORE_COUNT=$(nproc || echo 4)
-elif [[ $(uname) == "Darwin" ]]; then
+elif [[ $(uname) == "Darwin" ]] || [[ $(uname) == "FreeBSD" ]]; then
     CURRENT_DIR="$(dirname "$(python -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' ${BASH_SOURCE[0]})")"
     CORE_COUNT=$(sysctl -n hw.ncpu || echo 4)
 fi
